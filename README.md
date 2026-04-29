@@ -1,6 +1,12 @@
 # dtolnay/rust-toolchain
 
-Hardened GitHub Action by [Chainguard](https://www.chainguard.dev).
+Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/dtolnay/rust-toolchain](https://github.com/dtolnay/rust-toolchain).
+
+## Versions
+
+| Version | Tag | Upstream commit |
+|---------|-----|-----------------|
+| v1 | [`v1`](https://github.com/chainguard-actions/rust-toolchain/tree/v1) | — |
 
 ## Privacy
 
