@@ -1,5 +1,7 @@
 # dtolnay/rust-toolchain
 
+Concise GitHub Action for installing a Rust toolchain
+
 Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/dtolnay/rust-toolchain](https://github.com/dtolnay/rust-toolchain).
 
 ## Versions
