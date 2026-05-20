@@ -1,7 +1,0 @@
-{
-  "owner": "dtolnay",
-  "name": "rust-toolchain",
-  "visibility": "internal",
-  "description": "Concise GitHub Action for installing a Rust toolchain",
-  "block_publish": false
-}
