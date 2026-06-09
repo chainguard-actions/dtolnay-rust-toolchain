@@ -8,13 +8,13 @@
 
 **Harden Agent Version:** `1`
 
-Action **dtolnay--rust-toolchain/v1** was hardened automatically. 3 finding(s) were identified and resolved across 1 iteration(s).
+Action **dtolnay--rust-toolchain/v1** was hardened automatically. 4 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-The 'flags' step directly interpolates the attacker-controlled expression `${{inputs.components}}` inside a `run:` block. Specifically, the line `echo "downgrade=${{steps.parse.outputs.toolchain == 'nightly' && inputs.components && ' --allow-downgrade' || ''}}" >> $GITHUB_OUTPUT` embeds `inputs.components` directly in the shell command string rather than routing it through an `env:` variable first.
+In the 'flags' step, the attacker-controlled expression `${{ inputs.components }}` is directly interpolated inside the `run:` shell command string (in the `downgrade=` line). This allows an attacker to inject arbitrary shell commands by supplying a malicious value for the `components` input. The `targets` and `components` values are correctly routed through env vars, but `inputs.components` is also used raw in the expression on line 62.
 
 Locations:
 
@@ -22,25 +22,27 @@ Locations:
 
 ### github-env-injection (severity: high)
 
-Two steps write attacker-controlled `inputs.*` values to `$GITHUB_OUTPUT` via env vars without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). (1) The 'parse' step maps `inputs.toolchain` to the env var `toolchain` and then writes `echo "toolchain=$toolchain" >> $GITHUB_OUTPUT` (and similar variants) without sanitizing newlines — a newline in the toolchain input could inject arbitrary entries into GITHUB_OUTPUT. (2) The 'flags' step maps `inputs.targets`, `inputs.target`, and `inputs.components` to env vars and writes them to `$GITHUB_OUTPUT` via `echo "targets=..." >> $GITHUB_OUTPUT` and `echo "components=..." >> $GITHUB_OUTPUT` without sanitization.
+The 'parse' step writes the attacker-controlled `inputs.toolchain` value (via env var `$toolchain`) to `$GITHUB_OUTPUT` in multiple branches (lines 42, 44, 47, 49, 51) without the required `printf '%s' ... | tr -d '\n\r'` sanitization. A newline injected into the toolchain input can poison subsequent entries in the output file.
 
 Locations:
 
-- `action.yml:42`
-- `action.yml:44`
-- `action.yml:47`
-- `action.yml:49`
-- `action.yml:51`
-- `action.yml:60`
-- `action.yml:61`
+- `action.yml:34`
+
+### github-env-injection (severity: high)
+
+The 'flags' step writes attacker-controlled values to `$GITHUB_OUTPUT` without sanitization: (1) `$targets` (from `inputs.targets`/`inputs.target`) and `$components` (from `inputs.components`) are written via env vars but without `printf '%s' ... | tr -d '\n\r'`; (2) `${{ inputs.components }}` is directly interpolated in the `downgrade=` line and written to `$GITHUB_OUTPUT`. Newline injection via any of these inputs can corrupt the output file.
+
+Locations:
+
+- `action.yml:58`
 
 ### unsafe-shell (severity: high)
 
-A `run:` block pipes the output of `curl` directly to `sh` to install rustup: `curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --default-toolchain none -y`. Even though TLS is enforced, piping remote content directly to a shell is an unsafe pattern — if the remote server or the network path is compromised, arbitrary code executes on the runner without any integrity check.
+The 'install rustup if needed' step pipes remote content directly to a shell interpreter: `curl ... https://sh.rustup.rs | sh -s -- --default-toolchain none -y`. The script is not downloaded to a file and verified before execution. A compromised or MitM'd response would execute arbitrary code on the runner.
 
 Locations:
 
-- `action.yml:68`
+- `action.yml:76`
 
 ## Iteration Notes
 
@@ -50,5 +52,9 @@ Locations:
 
 **Notes:**
 
-Fixed all three high-severity findings in action.yml: (1) script-injection: replaced direct `${{inputs.components}}` interpolation in the 'flags' step's downgrade line with a shell conditional using the already-env-mapped `$components` variable; (2) github-env-injection: added `printf '%s' "$var" | tr -d '\n\r'` sanitization before every write to $GITHUB_OUTPUT in both the 'parse' and 'flags' steps; (3) unsafe-shell: replaced `curl ... | sh -s --` with a two-step approach that downloads the rustup installer to /tmp/rustup-init.sh, executes it separately, then removes it.
+Fixed all four findings in action.yml:
+1. script-injection: Removed `${{ inputs.components }}` from the `downgrade=` run line; moved `steps.parse.outputs.toolchain` into an env var and evaluated the condition purely in shell.
+2. github-env-injection (parse step): All branches writing to $GITHUB_OUTPUT now sanitize via `printf '%s' ... | tr -d '\n\r'` before writing.
+3. github-env-injection (flags step): `targets` and `components` outputs sanitized with `printf '%s' ... | tr -d '\n\r'`; `downgrade` computed in pure shell without expression interpolation.
+4. unsafe-shell: Replaced `curl ... | sh` with download-then-execute pattern: curl saves to `$RUNNER_TEMP/rustup-init.sh`, then `sh` runs the saved file, then the file is removed.
 

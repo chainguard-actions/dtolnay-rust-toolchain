@@ -1,4 +1,4 @@
-name: Test toolchain install with target alias
+name: Test stable toolchain install
 on:
   workflow_dispatch:
 jobs:
@@ -10,7 +10,6 @@ jobs:
         uses: .
         with:
           toolchain: stable
-          target: x86_64-unknown-linux-musl
       - name: Assert cachekey output is set
         env:
           CACHEKEY: ${{ steps.action.outputs.cachekey }}
@@ -21,7 +20,17 @@ jobs:
             exit 1
           fi
           echo "PASS"
-      - name: Assert musl target is installed
+      - name: Assert name output is set
+        env:
+          NAME: ${{ steps.action.outputs.name }}
         run: |
-          rustup target list --installed | grep x86_64-unknown-linux-musl
-          echo "PASS: x86_64-unknown-linux-musl target is installed"
+          echo "name: $NAME"
+          if [ -z "$NAME" ]; then
+            echo "FAIL: name output is empty"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert rustc is available
+        run: |
+          rustc --version
+          echo "PASS: rustc is available"

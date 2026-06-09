@@ -24,4 +24,4 @@ jobs:
       - name: Assert wasm32 target is installed
         run: |
           rustup target list --installed | grep wasm32-unknown-unknown
-          echo "PASS"
+          echo "PASS: wasm32-unknown-unknown target is installed"

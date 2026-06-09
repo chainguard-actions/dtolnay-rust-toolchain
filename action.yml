@@ -53,19 +53,17 @@ runs:
           exit 1
         elif [[ $toolchain =~ ^stable' '[0-9]+' '(year|month|week|day)s?' 'ago$ ]]; then
           if [[ ${{runner.os}} == macOS ]]; then
-            raw="1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))"
+            safe=$(printf '%s' "1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))" | tr -d '\n\r')
+            echo "toolchain=$safe" >> "$GITHUB_OUTPUT"
           else
-            raw="1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))"
+            safe=$(printf '%s' "1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))" | tr -d '\n\r')
+            echo "toolchain=$safe" >> "$GITHUB_OUTPUT"
           fi
-          safe=$(printf '%s' "$raw" | tr -d '\n\r')
-          echo "toolchain=$safe" >> "$GITHUB_OUTPUT"
         elif [[ $toolchain =~ ^stable' 'minus' '[0-9]+' 'releases?$ ]]; then
-          raw="1.$((($(date +%s)/60/60/24-16569)/7/6-${toolchain//[^0-9]/}))"
-          safe=$(printf '%s' "$raw" | tr -d '\n\r')
+          safe=$(printf '%s' "1.$((($(date +%s)/60/60/24-16569)/7/6-${toolchain//[^0-9]/}))" | tr -d '\n\r')
           echo "toolchain=$safe" >> "$GITHUB_OUTPUT"
         elif [[ $toolchain =~ ^1\.[0-9]+$ ]]; then
-          raw="1.$((i=${toolchain#1.}, c=($(date +%s)/60/60/24-16569)/7/6, i+9*i*(10*i<=c)+90*i*(100*i<=c)))"
-          safe=$(printf '%s' "$raw" | tr -d '\n\r')
+          safe=$(printf '%s' "1.$((i=${toolchain#1.}, c=($(date +%s)/60/60/24-16569)/7/6, i+9*i*(10*i<=c)+90*i*(100*i<=c)))" | tr -d '\n\r')
           echo "toolchain=$safe" >> "$GITHUB_OUTPUT"
         else
           safe=$(printf '%s' "$toolchain" | tr -d '\n\r')
@@ -77,23 +75,19 @@ runs:
     - id: flags
       run: |
         : construct rustup command line
-        raw_targets="$(for t in ${targets//,/ }; do echo -n ' --target' $t; done)"
-        safe_targets=$(printf '%s' "$raw_targets" | tr -d '\n\r')
+        safe_targets=$(printf '%s' "$(for t in ${targets//,/ }; do echo -n ' --target' $t; done)" | tr -d '\n\r')
         echo "targets=$safe_targets" >> "$GITHUB_OUTPUT"
-        raw_components="$(for c in ${components//,/ }; do echo -n ' --component' $c; done)"
-        safe_components=$(printf '%s' "$raw_components" | tr -d '\n\r')
+        safe_components=$(printf '%s' "$(for c in ${components//,/ }; do echo -n ' --component' $c; done)" | tr -d '\n\r')
         echo "components=$safe_components" >> "$GITHUB_OUTPUT"
-        if [[ $parsed_toolchain == 'nightly' && -n $components ]]; then
-          downgrade=' --allow-downgrade'
+        if [[ $toolchain == nightly ]] && [[ -n $components ]]; then
+          echo "downgrade= --allow-downgrade" >> "$GITHUB_OUTPUT"
         else
-          downgrade=''
+          echo "downgrade=" >> "$GITHUB_OUTPUT"
         fi
-        safe_downgrade=$(printf '%s' "$downgrade" | tr -d '\n\r')
-        echo "downgrade=$safe_downgrade" >> "$GITHUB_OUTPUT"
       env:
         targets: ${{inputs.targets || inputs.target || ''}}
         components: ${{inputs.components}}
-        parsed_toolchain: ${{steps.parse.outputs.toolchain}}
+        toolchain: ${{steps.parse.outputs.toolchain}}
       shell: bash
     - run: |
         : set $CARGO_HOME
@@ -102,9 +96,9 @@ runs:
     - run: |
         : install rustup if needed
         if ! command -v rustup &>/dev/null; then
-          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail --output /tmp/rustup-init.sh https://sh.rustup.rs
-          sh /tmp/rustup-init.sh --default-toolchain none -y
-          rm -f /tmp/rustup-init.sh
+          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail --output "$RUNNER_TEMP/rustup-init.sh" https://sh.rustup.rs
+          sh "$RUNNER_TEMP/rustup-init.sh" --default-toolchain none -y
+          rm -f "$RUNNER_TEMP/rustup-init.sh"
           echo "$CARGO_HOME/bin" >> $GITHUB_PATH
         fi
       if: runner.os != 'Windows'
