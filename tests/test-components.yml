@@ -24,8 +24,8 @@ jobs:
       - name: Assert clippy is available
         run: |
           cargo clippy --version
-          echo "PASS: clippy is available"
+          echo "PASS"
       - name: Assert rustfmt is available
         run: |
-          rustfmt --version
-          echo "PASS: rustfmt is available"
+          cargo fmt --version
+          echo "PASS"

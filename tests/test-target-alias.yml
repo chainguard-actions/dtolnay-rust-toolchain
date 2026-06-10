@@ -21,7 +21,7 @@ jobs:
             exit 1
           fi
           echo "PASS"
-      - name: Assert musl target is installed
+      - name: Assert target is installed via alias
         run: |
           rustup target list --installed | grep x86_64-unknown-linux-musl
-          echo "PASS: x86_64-unknown-linux-musl target is installed"
+          echo "PASS"

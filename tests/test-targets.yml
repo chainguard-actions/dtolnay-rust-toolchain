@@ -10,7 +10,7 @@ jobs:
         uses: .
         with:
           toolchain: stable
-          targets: wasm32-unknown-unknown
+          targets: x86_64-unknown-linux-musl
       - name: Assert cachekey output is set
         env:
           CACHEKEY: ${{ steps.action.outputs.cachekey }}
@@ -21,7 +21,7 @@ jobs:
             exit 1
           fi
           echo "PASS"
-      - name: Assert wasm32 target is installed
+      - name: Assert target is installed
         run: |
-          rustup target list --installed | grep wasm32-unknown-unknown
-          echo "PASS: wasm32-unknown-unknown target is installed"
+          rustup target list --installed | grep x86_64-unknown-linux-musl
+          echo "PASS"
