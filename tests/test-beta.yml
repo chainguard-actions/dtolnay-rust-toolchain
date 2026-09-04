@@ -1,0 +1,46 @@
+name: Test beta toolchain
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: toolchain
+        name: Install beta Rust toolchain
+        uses: .
+        with:
+          toolchain: beta
+
+      - name: Assert cachekey output is set
+        env:
+          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+        run: |
+          echo "cachekey: $CACHEKEY"
+          if [ -z "$CACHEKEY" ]; then
+            echo "FAIL: cachekey output is empty"
+            exit 1
+          fi
+          echo "PASS: cachekey=$CACHEKEY"
+
+      - name: Assert name output is beta
+        env:
+          NAME: ${{ steps.toolchain.outputs.name }}
+        run: |
+          echo "name: $NAME"
+          if [ "$NAME" != "beta" ]; then
+            echo "FAIL: expected name=beta but got: $NAME"
+            exit 1
+          fi
+          echo "PASS: name=beta"
+
+      - name: Assert rustc beta is available
+        run: |
+          RUSTC_VER=$(rustc --version)
+          echo "rustc version: $RUSTC_VER"
+          if ! echo "$RUSTC_VER" | grep -q 'beta'; then
+            echo "FAIL: expected beta rustc but got: $RUSTC_VER"
+            exit 1
+          fi
+          echo "PASS: beta rustc is available"

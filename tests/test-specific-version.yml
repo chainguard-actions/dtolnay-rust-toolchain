@@ -1,0 +1,46 @@
+name: Test specific Rust version
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: toolchain
+        name: Install Rust 1.70.0
+        uses: .
+        with:
+          toolchain: "1.70.0"
+
+      - name: Assert cachekey output is set
+        env:
+          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+        run: |
+          echo "cachekey: $CACHEKEY"
+          if [ -z "$CACHEKEY" ]; then
+            echo "FAIL: cachekey output is empty"
+            exit 1
+          fi
+          echo "PASS: cachekey=$CACHEKEY"
+
+      - name: Assert name output is set
+        env:
+          NAME: ${{ steps.toolchain.outputs.name }}
+        run: |
+          echo "name: $NAME"
+          if [ -z "$NAME" ]; then
+            echo "FAIL: name output is empty"
+            exit 1
+          fi
+          echo "PASS: name=$NAME"
+
+      - name: Assert rustc version is 1.70.x
+        run: |
+          RUSTC_VER=$(rustc --version)
+          echo "rustc version: $RUSTC_VER"
+          if ! echo "$RUSTC_VER" | grep -qE '^rustc 1\.70\.'; then
+            echo "FAIL: expected rustc 1.70.x but got: $RUSTC_VER"
+            exit 1
+          fi
+          echo "PASS: rustc is 1.70.x"

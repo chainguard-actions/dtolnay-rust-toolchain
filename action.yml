@@ -45,152 +45,176 @@ runs:
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - id: parse
+      name: Parse toolchain version
       run: |
-        : parse toolchain version
         if [[ -z $toolchain ]]; then
           # GitHub does not enforce `required: true` inputs itself. https://github.com/actions/runner/issues/1070
           echo "'toolchain' is a required input" >&2
           exit 1
         elif [[ $toolchain =~ ^stable' '[0-9]+' '(year|month|week|day)s?' 'ago$ ]]; then
           if [[ $RUNNER_OS == macOS ]]; then
-            safe=$(printf '%s' "1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))" | tr -d '\n\r')
-            echo "toolchain=$safe" >> $GITHUB_OUTPUT
+            result="1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(..\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))"
           else
-            safe=$(printf '%s' "1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))" | tr -d '\n\r')
-            echo "toolchain=$safe" >> $GITHUB_OUTPUT
+            result="1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))"
           fi
         elif [[ $toolchain =~ ^stable' 'minus' '[0-9]+' 'releases?$ ]]; then
-          safe=$(printf '%s' "1.$((($(date +%s)/60/60/24-16569)/7/6-${toolchain//[^0-9]/}))" | tr -d '\n\r')
-          echo "toolchain=$safe" >> $GITHUB_OUTPUT
+          result="1.$((($(date +%s)/60/60/24-16569)/7/6-${toolchain//[^0-9]/}))"
         elif [[ $toolchain =~ ^1\.[0-9]+$ ]]; then
-          safe=$(printf '%s' "1.$((i=${toolchain#1.}, c=($(date +%s)/60/60/24-16569)/7/6, i+9*i*(10*i<=c)+90*i*(100*i<=c)))" | tr -d '\n\r')
-          echo "toolchain=$safe" >> $GITHUB_OUTPUT
+          result="1.$((i=${toolchain#1.}, c=($(date +%s)/60/60/24-16569)/7/6, i+9*i*(10*i<=c)+90*i*(100*i<=c)))"
         else
-          safe=$(printf '%s' "$toolchain" | tr -d '\n\r')
-          echo "toolchain=$safe" >> $GITHUB_OUTPUT
+          result="$toolchain"
         fi
+        safe=$(printf '%s' "$result" | tr -d '\n\r')
+        echo "toolchain=$safe" >> "$GITHUB_OUTPUT"
       env:
         toolchain: ${{inputs.toolchain}}
       shell: bash
     - id: flags
+      name: Construct rustup command line
       run: |
-        : construct rustup command line
-        targets_val=$(IFS=,; read -ra arr <<< "$targets"; for t in "${arr[@]}"; do printf ' --target %s' "$t"; done)
+        targets_val=""
+        if [[ -n "$targets" ]]; then
+          IFS=, read -ra target_list <<< "$targets"
+          for t in "${target_list[@]}"; do
+            targets_val="$targets_val --target $t"
+          done
+        fi
+        components_val=""
+        if [[ -n "$components" ]]; then
+          IFS=, read -ra component_list <<< "$components"
+          for c in "${component_list[@]}"; do
+            components_val="$components_val --component $c"
+          done
+        fi
         safe_targets=$(printf '%s' "$targets_val" | tr -d '\n\r')
-        echo "targets=$safe_targets" >> $GITHUB_OUTPUT
-        components_val=$(IFS=,; read -ra arr <<< "$components"; for c in "${arr[@]}"; do printf ' --component %s' "$c"; done)
         safe_components=$(printf '%s' "$components_val" | tr -d '\n\r')
-        echo "components=$safe_components" >> $GITHUB_OUTPUT
-        if [[ $PARSED_TOOLCHAIN == nightly ]] && [[ -n $components ]]; then
-          echo "downgrade= --allow-downgrade" >> $GITHUB_OUTPUT
+        echo "targets=$safe_targets" >> "$GITHUB_OUTPUT"
+        echo "components=$safe_components" >> "$GITHUB_OUTPUT"
+        if [[ "$PARSED_TOOLCHAIN" == "nightly" && -n "$components" ]]; then
+          echo "downgrade= --allow-downgrade" >> "$GITHUB_OUTPUT"
         else
-          echo "downgrade=" >> $GITHUB_OUTPUT
+          echo "downgrade=" >> "$GITHUB_OUTPUT"
         fi
       env:
         targets: ${{inputs.targets || inputs.target || ''}}
         components: ${{inputs.components}}
         PARSED_TOOLCHAIN: ${{steps.parse.outputs.toolchain}}
       shell: bash
-    - run: |
-        : set $CARGO_HOME
-        if [[ $RUNNER_OS == Windows ]]; then
-          default_cargo_home='$USERPROFILE\.cargo'
+    - name: Set $CARGO_HOME
+      run: |
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          cargo_home="${CARGO_HOME:-$USERPROFILE\\.cargo}"
         else
-          default_cargo_home='$HOME/.cargo'
+          cargo_home="${CARGO_HOME:-$HOME/.cargo}"
         fi
-        safe=$(printf '%s' "${CARGO_HOME:-$default_cargo_home}" | tr -d '\n\r')
-        echo "CARGO_HOME=$safe" >> $GITHUB_ENV
+        safe=$(printf '%s' "$cargo_home" | tr -d '\n\r')
+        echo "CARGO_HOME=$safe" >> "$GITHUB_ENV"
       shell: bash
-    - run: |
-        : install rustup if needed
+    - name: Install rustup if needed
+      run: |
         if ! command -v rustup &>/dev/null; then
-          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail --output /tmp/rustup-init.sh https://sh.rustup.rs
-          sh /tmp/rustup-init.sh --default-toolchain none -y
-          rm -f /tmp/rustup-init.sh
-          echo "$CARGO_HOME/bin" >> $GITHUB_PATH
+          RUSTUP_SCRIPT=$(mktemp)
+          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs --output "$RUSTUP_SCRIPT"
+          sh "$RUSTUP_SCRIPT" --default-toolchain none -y
+          rm -f "$RUSTUP_SCRIPT"
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
         fi
       if: runner.os != 'Windows'
       shell: bash
-    - run: |
-        : install rustup if needed on windows
+    - name: Install rustup if needed on windows
+      run: |
         if ! command -v rustup &>/dev/null; then
-          if [[ $RUNNER_ARCH == ARM64 ]]; then
-            arch=aarch64
+          if [[ "$RUNNER_ARCH" == "ARM64" ]]; then
+            rustup_arch="aarch64"
           else
-            arch=x86_64
+            rustup_arch="x86_64"
           fi
-          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail "https://win.rustup.rs/${arch}" --output "$RUNNER_TEMP/rustup-init.exe"
-          "$RUNNER_TEMP/rustup-init.exe" --default-toolchain none --no-modify-path -y
-          echo "$CARGO_HOME\bin" >> $GITHUB_PATH
+          rustup_init="$RUNNER_TEMP\\rustup-init.exe"
+          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail "https://win.rustup.rs/$rustup_arch" --output "$rustup_init"
+          "$rustup_init" --default-toolchain none --no-modify-path -y
+          echo "$CARGO_HOME\\bin" >> "$GITHUB_PATH"
         fi
       if: runner.os == 'Windows'
       shell: bash
     - name: rustup toolchain install
       run: |
-        target_args=()
-        [[ -n "$FLAGS_TARGETS" ]] && read -ra target_args <<< "$FLAGS_TARGETS"
-        component_args=()
-        [[ -n "$FLAGS_COMPONENTS" ]] && read -ra component_args <<< "$FLAGS_COMPONENTS"
-        downgrade_args=()
-        [[ -n "$FLAGS_DOWNGRADE" ]] && read -ra downgrade_args <<< "$FLAGS_DOWNGRADE"
-        rustup toolchain install "$PARSED_TOOLCHAIN" "${target_args[@]}" "${component_args[@]}" --profile minimal "${downgrade_args[@]}" --no-self-update
+        flag_targets=()
+        if [ -n "$FLAGS_TARGETS" ]; then
+          while IFS= read -r -d '' t; do flag_targets+=("$t"); done \
+            < <(printf '%s' "$FLAGS_TARGETS" | xargs printf '%s\0')
+        fi
+        flag_components=()
+        if [ -n "$FLAGS_COMPONENTS" ]; then
+          while IFS= read -r -d '' t; do flag_components+=("$t"); done \
+            < <(printf '%s' "$FLAGS_COMPONENTS" | xargs printf '%s\0')
+        fi
+        flag_downgrade=()
+        if [ -n "$FLAGS_DOWNGRADE" ]; then
+          while IFS= read -r -d '' t; do flag_downgrade+=("$t"); done \
+            < <(printf '%s' "$FLAGS_DOWNGRADE" | xargs printf '%s\0')
+        fi
+        rustup toolchain install "$PARSED_TOOLCHAIN" "${flag_targets[@]}" "${flag_components[@]}" --profile minimal "${flag_downgrade[@]}" --no-self-update
       env:
         PARSED_TOOLCHAIN: ${{steps.parse.outputs.toolchain}}
         FLAGS_TARGETS: ${{steps.flags.outputs.targets}}
         FLAGS_COMPONENTS: ${{steps.flags.outputs.components}}
         FLAGS_DOWNGRADE: ${{steps.flags.outputs.downgrade}}
+        RUSTUP_PERMIT_COPY_RENAME: 1
       shell: bash
-    - run: rustup default "$PARSED_TOOLCHAIN"
+    - name: rustup default
+      run: rustup default "$PARSED_TOOLCHAIN"
       env:
         PARSED_TOOLCHAIN: ${{steps.parse.outputs.toolchain}}
       shell: bash
       continue-on-error: true # https://github.com/dtolnay/rust-toolchain/issues/127
     - id: rustc-version
+      name: Create cachekey
       run: |
-        : create cachekey
         DATE=$(rustc +"$PARSED_TOOLCHAIN" --version --verbose | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')
         HASH=$(rustc +"$PARSED_TOOLCHAIN" --version --verbose | sed -ne 's/^commit-hash: //p')
-        echo "cachekey=$(echo $DATE$HASH | head -c12)" >> $GITHUB_OUTPUT
+        echo "cachekey=$(echo $DATE$HASH | head -c12)" >> "$GITHUB_OUTPUT"
       env:
         PARSED_TOOLCHAIN: ${{steps.parse.outputs.toolchain}}
       shell: bash
-    - run: |
-        : disable incremental compilation
+    - name: Disable incremental compilation
+      run: |
         if [ -z "${CARGO_INCREMENTAL+set}" ]; then
-          echo CARGO_INCREMENTAL=0 >> $GITHUB_ENV
+          echo CARGO_INCREMENTAL=0 >> "$GITHUB_ENV"
         fi
       shell: bash
-    - run: |
-        : enable colors in Cargo output
+    - name: Enable colors in Cargo output
+      run: |
         if [ -z "${CARGO_TERM_COLOR+set}" ]; then
-          echo CARGO_TERM_COLOR=always >> $GITHUB_ENV
+          echo CARGO_TERM_COLOR=always >> "$GITHUB_ENV"
         fi
       shell: bash
-    - run: |
-        : enable Cargo sparse registry
+    - name: Enable Cargo sparse registry
+      run: |
         # implemented in 1.66, stabilized in 1.68, made default in 1.70
-        if [ -z "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL+set}" -o -f "$RUNNER_TEMP/.implicit_cargo_registries_crates_io_protocol" ]; then
+        if [ -z "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL+set}" -o -f "$RUNNER_TEMP"/.implicit_cargo_registries_crates_io_protocol ]; then
           if rustc +"$PARSED_TOOLCHAIN" --version --verbose | grep -q '^release: 1\.6[89]\.'; then
-            touch "$RUNNER_TEMP/.implicit_cargo_registries_crates_io_protocol" || true
-            echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse >> $GITHUB_ENV
+            touch "$RUNNER_TEMP"/.implicit_cargo_registries_crates_io_protocol || true
+            echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse >> "$GITHUB_ENV"
           elif rustc +"$PARSED_TOOLCHAIN" --version --verbose | grep -q '^release: 1\.6[67]\.'; then
-            touch "$RUNNER_TEMP/.implicit_cargo_registries_crates_io_protocol" || true
-            echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git >> $GITHUB_ENV
+            touch "$RUNNER_TEMP"/.implicit_cargo_registries_crates_io_protocol || true
+            echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git >> "$GITHUB_ENV"
           fi
         fi
       env:
         PARSED_TOOLCHAIN: ${{steps.parse.outputs.toolchain}}
+        RUNNER_TEMP: ${{runner.temp}}
       shell: bash
-    - run: |
-        : work around spurious network errors in curl 8.0
+    - name: Work around spurious network errors in curl 8.0
+      run: |
         # https://rust-lang.zulipchat.com/#narrow/stream/246057-t-cargo/topic/timeout.20investigation
         if rustc +"$PARSED_TOOLCHAIN" --version --verbose | grep -q '^release: 1\.7[01]\.'; then
-          echo CARGO_HTTP_MULTIPLEXING=false >> $GITHUB_ENV
+          echo CARGO_HTTP_MULTIPLEXING=false >> "$GITHUB_ENV"
         fi
       env:
         PARSED_TOOLCHAIN: ${{steps.parse.outputs.toolchain}}
       shell: bash
-    - run: rustc +"$PARSED_TOOLCHAIN" --version --verbose
+    - name: rustc --version --verbose
+      run: rustc +"$PARSED_TOOLCHAIN" --version --verbose
       env:
         PARSED_TOOLCHAIN: ${{steps.parse.outputs.toolchain}}
       shell: bash

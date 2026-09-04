@@ -1,0 +1,48 @@
+name: Test toolchain with components
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: toolchain
+        name: Install stable Rust with clippy and rustfmt
+        uses: .
+        with:
+          toolchain: stable
+          components: clippy,rustfmt
+
+      - name: Assert cachekey output is set
+        env:
+          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+        run: |
+          echo "cachekey: $CACHEKEY"
+          if [ -z "$CACHEKEY" ]; then
+            echo "FAIL: cachekey output is empty"
+            exit 1
+          fi
+          echo "PASS: cachekey=$CACHEKEY"
+
+      - name: Assert clippy is available
+        run: |
+          cargo clippy --version
+          CLIPPY_VER=$(cargo clippy --version)
+          echo "clippy version: $CLIPPY_VER"
+          if ! echo "$CLIPPY_VER" | grep -q 'clippy'; then
+            echo "FAIL: clippy not available or wrong output: $CLIPPY_VER"
+            exit 1
+          fi
+          echo "PASS: clippy is available"
+
+      - name: Assert rustfmt is available
+        run: |
+          rustfmt --version
+          RUSTFMT_VER=$(rustfmt --version)
+          echo "rustfmt version: $RUSTFMT_VER"
+          if ! echo "$RUSTFMT_VER" | grep -q 'rustfmt'; then
+            echo "FAIL: rustfmt not available or wrong output: $RUSTFMT_VER"
+            exit 1
+          fi
+          echo "PASS: rustfmt is available"

@@ -1,0 +1,52 @@
+name: Test stable toolchain basic
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: toolchain
+        name: Install stable Rust toolchain
+        uses: .
+        with:
+          toolchain: stable
+
+      - name: Assert cachekey output is set
+        env:
+          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+        run: |
+          echo "cachekey: $CACHEKEY"
+          if [ -z "$CACHEKEY" ]; then
+            echo "FAIL: cachekey output is empty"
+            exit 1
+          fi
+          echo "PASS: cachekey=$CACHEKEY"
+
+      - name: Assert name output is set
+        env:
+          NAME: ${{ steps.toolchain.outputs.name }}
+        run: |
+          echo "name: $NAME"
+          if [ -z "$NAME" ]; then
+            echo "FAIL: name output is empty"
+            exit 1
+          fi
+          echo "PASS: name=$NAME"
+
+      - name: Assert rustc is available and is stable
+        run: |
+          rustc --version
+          RUSTC_VER=$(rustc --version)
+          echo "rustc version: $RUSTC_VER"
+          if ! echo "$RUSTC_VER" | grep -qE '^rustc [0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "FAIL: rustc version does not look like a stable release"
+            exit 1
+          fi
+          echo "PASS: rustc is available"
+
+      - name: Assert cargo is available
+        run: |
+          cargo --version
+          echo "PASS: cargo is available"
