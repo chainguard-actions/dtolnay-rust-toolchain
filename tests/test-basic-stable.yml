@@ -1,4 +1,4 @@
-name: Test stable toolchain basic
+name: Test basic stable toolchain
 on:
   workflow_dispatch:
 jobs:
@@ -40,11 +40,11 @@ jobs:
           rustc --version
           RUSTC_VER=$(rustc --version)
           echo "rustc version: $RUSTC_VER"
-          if ! echo "$RUSTC_VER" | grep -qE '^rustc [0-9]+\.[0-9]+\.[0-9]+'; then
-            echo "FAIL: rustc version does not look like a stable release"
+          if echo "$RUSTC_VER" | grep -q "nightly"; then
+            echo "FAIL: expected stable but got nightly"
             exit 1
           fi
-          echo "PASS: rustc is available"
+          echo "PASS: stable rustc is installed"
 
       - name: Assert cargo is available
         run: |

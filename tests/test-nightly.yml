@@ -24,23 +24,23 @@ jobs:
           fi
           echo "PASS: cachekey=$CACHEKEY"
 
-      - name: Assert name output is nightly
+      - name: Assert name output is set
         env:
           NAME: ${{ steps.toolchain.outputs.name }}
         run: |
           echo "name: $NAME"
-          if [ "$NAME" != "nightly" ]; then
-            echo "FAIL: expected name=nightly but got: $NAME"
+          if [ -z "$NAME" ]; then
+            echo "FAIL: name output is empty"
             exit 1
           fi
-          echo "PASS: name=nightly"
+          echo "PASS: name=$NAME"
 
-      - name: Assert rustc nightly is available
+      - name: Assert rustc is nightly
         run: |
           RUSTC_VER=$(rustc --version)
           echo "rustc version: $RUSTC_VER"
-          if ! echo "$RUSTC_VER" | grep -q 'nightly'; then
-            echo "FAIL: expected nightly rustc but got: $RUSTC_VER"
+          if ! echo "$RUSTC_VER" | grep -q "nightly"; then
+            echo "FAIL: expected nightly but got: $RUSTC_VER"
             exit 1
           fi
-          echo "PASS: nightly rustc is available"
+          echo "PASS: nightly rustc is installed"

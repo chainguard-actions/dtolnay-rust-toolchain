@@ -1,0 +1,49 @@
+name: Test cachekey output format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: toolchain
+        name: Install stable Rust toolchain
+        uses: .
+        with:
+          toolchain: stable
+
+      - name: Assert cachekey is 12 characters
+        env:
+          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+        run: |
+          echo "cachekey: $CACHEKEY"
+          LEN=${#CACHEKEY}
+          echo "cachekey length: $LEN"
+          if [ "$LEN" -ne 12 ]; then
+            echo "FAIL: expected cachekey to be 12 characters, got $LEN"
+            exit 1
+          fi
+          echo "PASS: cachekey is 12 characters"
+
+      - name: Assert cachekey is alphanumeric
+        env:
+          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+        run: |
+          echo "cachekey: $CACHEKEY"
+          if ! echo "$CACHEKEY" | grep -qE '^[a-f0-9]{12}$'; then
+            echo "FAIL: cachekey '$CACHEKEY' does not match expected format (12 hex chars)"
+            exit 1
+          fi
+          echo "PASS: cachekey has correct format"
+
+      - name: Assert name output matches stable version pattern
+        env:
+          NAME: ${{ steps.toolchain.outputs.name }}
+        run: |
+          echo "name: $NAME"
+          if ! echo "$NAME" | grep -qE '^(stable|1\.[0-9]+\.[0-9]+)'; then
+            echo "FAIL: name '$NAME' does not look like a valid toolchain name"
+            exit 1
+          fi
+          echo "PASS: name has expected format"

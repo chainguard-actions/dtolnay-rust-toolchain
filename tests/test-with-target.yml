@@ -1,4 +1,4 @@
-name: Test toolchain with targets
+name: Test toolchain with target
 on:
   workflow_dispatch:
 jobs:
@@ -29,8 +29,8 @@ jobs:
         run: |
           TARGETS=$(rustup target list --installed)
           echo "installed targets: $TARGETS"
-          if ! echo "$TARGETS" | grep -q 'wasm32-unknown-unknown'; then
-            echo "FAIL: wasm32-unknown-unknown target not installed"
+          if ! echo "$TARGETS" | grep -q "wasm32-unknown-unknown"; then
+            echo "FAIL: wasm32-unknown-unknown target not found in installed targets"
             exit 1
           fi
           echo "PASS: wasm32-unknown-unknown target is installed"

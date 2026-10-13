@@ -28,21 +28,9 @@ jobs:
       - name: Assert clippy is available
         run: |
           cargo clippy --version
-          CLIPPY_VER=$(cargo clippy --version)
-          echo "clippy version: $CLIPPY_VER"
-          if ! echo "$CLIPPY_VER" | grep -q 'clippy'; then
-            echo "FAIL: clippy not available or wrong output: $CLIPPY_VER"
-            exit 1
-          fi
           echo "PASS: clippy is available"
 
       - name: Assert rustfmt is available
         run: |
           rustfmt --version
-          RUSTFMT_VER=$(rustfmt --version)
-          echo "rustfmt version: $RUSTFMT_VER"
-          if ! echo "$RUSTFMT_VER" | grep -q 'rustfmt'; then
-            echo "FAIL: rustfmt not available or wrong output: $RUSTFMT_VER"
-            exit 1
-          fi
           echo "PASS: rustfmt is available"

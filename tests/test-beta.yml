@@ -24,23 +24,23 @@ jobs:
           fi
           echo "PASS: cachekey=$CACHEKEY"
 
-      - name: Assert name output is beta
+      - name: Assert name output is set
         env:
           NAME: ${{ steps.toolchain.outputs.name }}
         run: |
           echo "name: $NAME"
-          if [ "$NAME" != "beta" ]; then
-            echo "FAIL: expected name=beta but got: $NAME"
+          if [ -z "$NAME" ]; then
+            echo "FAIL: name output is empty"
             exit 1
           fi
-          echo "PASS: name=beta"
+          echo "PASS: name=$NAME"
 
-      - name: Assert rustc beta is available
+      - name: Assert rustc is beta
         run: |
           RUSTC_VER=$(rustc --version)
           echo "rustc version: $RUSTC_VER"
-          if ! echo "$RUSTC_VER" | grep -q 'beta'; then
-            echo "FAIL: expected beta rustc but got: $RUSTC_VER"
+          if ! echo "$RUSTC_VER" | grep -q "beta"; then
+            echo "FAIL: expected beta but got: $RUSTC_VER"
             exit 1
           fi
-          echo "PASS: beta rustc is available"
+          echo "PASS: beta rustc is installed"

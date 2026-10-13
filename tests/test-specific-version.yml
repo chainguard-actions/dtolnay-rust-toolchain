@@ -8,10 +8,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - id: toolchain
-        name: Install Rust 1.70.0
+        name: Install Rust 1.75.0
         uses: .
         with:
-          toolchain: "1.70.0"
+          toolchain: "1.75.0"
 
       - name: Assert cachekey output is set
         env:
@@ -35,12 +35,12 @@ jobs:
           fi
           echo "PASS: name=$NAME"
 
-      - name: Assert rustc version is 1.70.x
+      - name: Assert rustc version is 1.75.x
         run: |
           RUSTC_VER=$(rustc --version)
           echo "rustc version: $RUSTC_VER"
-          if ! echo "$RUSTC_VER" | grep -qE '^rustc 1\.70\.'; then
-            echo "FAIL: expected rustc 1.70.x but got: $RUSTC_VER"
+          if ! echo "$RUSTC_VER" | grep -q "1\.75\."; then
+            echo "FAIL: expected 1.75.x but got: $RUSTC_VER"
             exit 1
           fi
-          echo "PASS: rustc is 1.70.x"
+          echo "PASS: rustc 1.75.x is installed"

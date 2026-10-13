@@ -1,0 +1,46 @@
+name: Test nightly toolchain with components
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: toolchain
+        name: Install nightly Rust with clippy and rustfmt
+        uses: .
+        with:
+          toolchain: nightly
+          components: clippy,rustfmt
+
+      - name: Assert cachekey output is set
+        env:
+          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+        run: |
+          echo "cachekey: $CACHEKEY"
+          if [ -z "$CACHEKEY" ]; then
+            echo "FAIL: cachekey output is empty"
+            exit 1
+          fi
+          echo "PASS: cachekey=$CACHEKEY"
+
+      - name: Assert rustc is nightly
+        run: |
+          RUSTC_VER=$(rustc --version)
+          echo "rustc version: $RUSTC_VER"
+          if ! echo "$RUSTC_VER" | grep -q "nightly"; then
+            echo "FAIL: expected nightly but got: $RUSTC_VER"
+            exit 1
+          fi
+          echo "PASS: nightly rustc is installed"
+
+      - name: Assert clippy is available
+        run: |
+          cargo clippy --version
+          echo "PASS: clippy is available"
+
+      - name: Assert rustfmt is available
+        run: |
+          rustfmt --version
+          echo "PASS: rustfmt is available"
