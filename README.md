@@ -8,7 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
-| v1 | [`v1`](https://github.com/chainguard-actions/dtolnay-rust-toolchain/tree/v1) | [`6c977a6`](https://github.com/dtolnay/rust-toolchain/commit/6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772) |
+| v1 | [`v1`](https://github.com/chainguard-actions/dtolnay-rust-toolchain/tree/v1) | [`e2a55d2`](https://github.com/dtolnay/rust-toolchain/commit/e2a55d2ffb04f378e9626c28d38b36d230d1e12f) |
 
 ## Privacy
 
