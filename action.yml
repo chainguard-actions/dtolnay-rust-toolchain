@@ -47,14 +47,13 @@ runs:
     - id: parse
       name: Parse toolchain version
       run: |
-        toolchain=$(printf '%s' "$toolchain" | tr -d '\n\r')
         if [[ -z $toolchain ]]; then
           # GitHub does not enforce `required: true` inputs itself. https://github.com/actions/runner/issues/1070
           echo "'toolchain' is a required input" >&2
           exit 1
         elif [[ $toolchain =~ ^stable' '[0-9]+' '(year|month|week|day)s?' 'ago$ ]]; then
           if [[ $RUNNER_OS == macOS ]]; then
-            echo "toolchain=1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT
+            echo "toolchain=1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT
           else
             echo "toolchain=1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT
           fi
@@ -65,27 +64,27 @@ runs:
         else
           delimiter=EOF
           while [[ $toolchain == *$delimiter* ]]; do delimiter+=_; done
-          printf 'toolchain<<%s\n%s\n%s\n' "$delimiter" "$toolchain" "$delimiter" >> $GITHUB_OUTPUT
+          safe_toolchain=$(printf '%s' "$toolchain" | tr -d '\n\r')
+          printf 'toolchain<<%s\n%s\n%s\n' "$delimiter" "$safe_toolchain" "$delimiter" >> $GITHUB_OUTPUT
         fi
       env:
         toolchain: ${{inputs.toolchain}}
-        RUNNER_OS: ${{runner.os}}
       shell: bash
     - name: Set $CARGO_HOME
       run: |
-        default_cargo_home=$RUNNER_OS_CARGO_HOME
+        if [[ $RUNNER_OS == Windows ]]; then
+          default_cargo_home="$USERPROFILE\\.cargo"
+        else
+          default_cargo_home="$HOME/.cargo"
+        fi
         safe=$(printf '%s' "${CARGO_HOME:-$default_cargo_home}" | tr -d '\n\r')
-        echo "CARGO_HOME=$safe" >> $GITHUB_ENV
-      env:
-        RUNNER_OS_CARGO_HOME: ${{runner.os == 'Windows' && '$USERPROFILE\.cargo' || '$HOME/.cargo'}}
+        echo "CARGO_HOME=$safe" >> "$GITHUB_ENV"
       shell: bash
     - name: Install rustup if needed
       run: |
         if ! command -v rustup &>/dev/null; then
-          RUSTUP_INIT=$(mktemp)
-          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs --output "$RUSTUP_INIT"
-          sh "$RUSTUP_INIT" --default-toolchain none -y
-          rm -f "$RUSTUP_INIT"
+          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs -o "$RUNNER_TEMP/rustup-init.sh"
+          sh "$RUNNER_TEMP/rustup-init.sh" --default-toolchain none -y
           echo "$CARGO_HOME/bin" >> $GITHUB_PATH
         fi
       if: runner.os != 'Windows'
@@ -93,25 +92,27 @@ runs:
     - name: Install rustup if needed on windows
       run: |
         if ! command -v rustup &>/dev/null; then
-          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail "https://win.rustup.rs/$RUSTUP_ARCH" --output "$RUNNER_TEMP\rustup-init.exe"
-          "$RUNNER_TEMP\rustup-init.exe" --default-toolchain none --no-modify-path -y
-          echo "$CARGO_HOME\bin" >> $GITHUB_PATH
+          if [[ $RUNNER_ARCH == ARM64 ]]; then
+            rustup_arch=aarch64
+          else
+            rustup_arch=x86_64
+          fi
+          curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail "https://win.rustup.rs/${rustup_arch}" --output "$RUNNER_TEMP\\rustup-init.exe"
+          "$RUNNER_TEMP\\rustup-init.exe" --default-toolchain none --no-modify-path -y
+          echo "$CARGO_HOME\\bin" >> $GITHUB_PATH
         fi
       if: runner.os == 'Windows'
-      env:
-        RUSTUP_ARCH: ${{runner.arch == 'ARM64' && 'aarch64' || 'x86_64'}}
-        RUNNER_TEMP: ${{runner.temp}}
       shell: bash
     - name: rustup toolchain install ${{steps.parse.outputs.toolchain}}
       run: |
         flags=()
         if [ -n "$targets" ]; then
           while IFS= read -r -d '' t; do flags+=(--target "$t"); done \
-            < <(printf '%s' "${targets//,/ }" | xargs printf '%s\0')
+            < <(printf '%s' "${targets//,/ }" | xargs -r printf '%s\0')
         fi
         if [ -n "$components" ]; then
           while IFS= read -r -d '' c; do flags+=(--component "$c"); done \
-            < <(printf '%s' "${components//,/ }" | xargs printf '%s\0')
+            < <(printf '%s' "${components//,/ }" | xargs -r printf '%s\0')
         fi
         if [[ $toolchain == nightly && -n $components ]]; then flags+=(--allow-downgrade); fi
         log=$(mktemp)
@@ -165,18 +166,17 @@ runs:
     - name: Enable Cargo sparse registry
       run: |
         # implemented in 1.66, stabilized in 1.68, made default in 1.70
-        if [ -z "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL+set}" -o -f "$RUNNER_TEMP"/.implicit_cargo_registries_crates_io_protocol ]; then
+        if [ -z "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL+set}" -o -f "$RUNNER_TEMP/.implicit_cargo_registries_crates_io_protocol" ]; then
           if rustc +"$toolchain" --version --verbose | grep -q '^release: 1\.6[89]\.'; then
-            touch "$RUNNER_TEMP"/.implicit_cargo_registries_crates_io_protocol || true
+            touch "$RUNNER_TEMP/.implicit_cargo_registries_crates_io_protocol" || true
             echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse >> $GITHUB_ENV
           elif rustc +"$toolchain" --version --verbose | grep -q '^release: 1\.6[67]\.'; then
-            touch "$RUNNER_TEMP"/.implicit_cargo_registries_crates_io_protocol || true
+            touch "$RUNNER_TEMP/.implicit_cargo_registries_crates_io_protocol" || true
             echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git >> $GITHUB_ENV
           fi
         fi
       env:
         toolchain: ${{steps.parse.outputs.toolchain}}
-        RUNNER_TEMP: ${{runner.temp}}
       shell: bash
     - name: Work around spurious network errors in curl 8.0
       run: |
