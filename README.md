@@ -6,9 +6,9 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 ## Versions
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v1 | [`v1`](https://github.com/chainguard-actions/dtolnay-rust-toolchain/tree/v1) | [`e2a55d2`](https://github.com/dtolnay/rust-toolchain/commit/e2a55d2ffb04f378e9626c28d38b36d230d1e12f) |
+| Version | Tag | Upstream commit | Hardening report |
+|---------|-----|-----------------|------------------|
+| v1 | [`v1`](https://github.com/chainguard-actions/dtolnay-rust-toolchain/tree/v1) | [`e2a55d2`](https://github.com/dtolnay/rust-toolchain/commit/e2a55d2ffb04f378e9626c28d38b36d230d1e12f) | [`HARDENING.md`](https://github.com/chainguard-actions/dtolnay-rust-toolchain/blob/v1/HARDENING.md) |
 
 ## Privacy
 
