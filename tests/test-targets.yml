@@ -1,0 +1,46 @@
+name: Test targets input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown, x86_64-unknown-linux-musl
+      - name: Assert name output
+        env:
+          ACTUAL: ${{ steps.action.outputs.name }}
+        run: |
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "stable" ]; then
+            echo "FAIL: expected 'stable'"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert cachekey output
+        env:
+          ACTUAL: ${{ steps.action.outputs.cachekey }}
+        run: |
+          echo "actual: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -qE '^[0-9]{8}[0-9a-f]{4}$'; then
+            echo "FAIL: cachekey has unexpected format"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert targets installed
+        run: |
+          export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+          installed="$(rustup +stable target list --installed)"
+          echo "installed targets:"
+          echo "$installed"
+          for t in wasm32-unknown-unknown x86_64-unknown-linux-musl; do
+            if ! echo "$installed" | grep -qx "$t"; then
+              echo "FAIL: target $t not installed"
+              exit 1
+            fi
+          done
+          echo "PASS"

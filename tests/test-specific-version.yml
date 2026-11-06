@@ -1,4 +1,4 @@
-name: Test specific Rust version
+name: Test specific version install
 on:
   workflow_dispatch:
 jobs:
@@ -6,41 +6,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - id: toolchain
-        name: Install Rust 1.75.0
+      - id: action
         uses: .
         with:
-          toolchain: "1.75.0"
-
-      - name: Assert cachekey output is set
+          toolchain: 1.70.0
+      - name: Assert name output
         env:
-          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+          ACTUAL: ${{ steps.action.outputs.name }}
         run: |
-          echo "cachekey: $CACHEKEY"
-          if [ -z "$CACHEKEY" ]; then
-            echo "FAIL: cachekey output is empty"
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "1.70.0" ]; then
+            echo "FAIL: expected '1.70.0'"
             exit 1
           fi
-          echo "PASS: cachekey=$CACHEKEY"
-
-      - name: Assert name output is set
+          echo "PASS"
+      - name: Assert cachekey output
         env:
-          NAME: ${{ steps.toolchain.outputs.name }}
+          ACTUAL: ${{ steps.action.outputs.cachekey }}
         run: |
-          echo "name: $NAME"
-          if [ -z "$NAME" ]; then
-            echo "FAIL: name output is empty"
+          echo "actual: $ACTUAL"
+          # rust 1.70.0 commit-date 2023-05-31
+          if ! [[ "$ACTUAL" =~ ^20230531[0-9a-f]{4}$ ]]; then
+            echo "FAIL: expected 20230531 + 4 hex chars"
             exit 1
           fi
-          echo "PASS: name=$NAME"
-
-      - name: Assert rustc version is 1.75.x
+          echo "PASS"
+      - name: Assert installed version and env
+        shell: bash
         run: |
-          RUSTC_VER=$(rustc --version)
-          echo "rustc version: $RUSTC_VER"
-          if ! echo "$RUSTC_VER" | grep -q "1\.75\."; then
-            echo "FAIL: expected 1.75.x but got: $RUSTC_VER"
-            exit 1
-          fi
-          echo "PASS: rustc 1.75.x is installed"
+          rustc +1.70.0 --version
+          rustc +1.70.0 --version | grep -q '^rustc 1\.70\.0' || { echo "FAIL: wrong rustc"; exit 1; }
+          echo "CARGO_HTTP_MULTIPLEXING=$CARGO_HTTP_MULTIPLEXING"
+          [ "$CARGO_HTTP_MULTIPLEXING" = "false" ] || { echo "FAIL: CARGO_HTTP_MULTIPLEXING should be false for 1.70"; exit 1; }
+          echo "PASS"

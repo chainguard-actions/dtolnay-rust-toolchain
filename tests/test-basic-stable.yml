@@ -1,4 +1,4 @@
-name: Test basic stable toolchain
+name: Test basic stable install
 on:
   workflow_dispatch:
 jobs:
@@ -6,47 +6,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - id: toolchain
-        name: Install stable Rust toolchain
+      - id: action
         uses: .
         with:
           toolchain: stable
-
-      - name: Assert cachekey output is set
+      - name: Assert name output
         env:
-          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+          ACTUAL: ${{ steps.action.outputs.name }}
         run: |
-          echo "cachekey: $CACHEKEY"
-          if [ -z "$CACHEKEY" ]; then
-            echo "FAIL: cachekey output is empty"
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "stable" ]; then
+            echo "FAIL: expected 'stable'"
             exit 1
           fi
-          echo "PASS: cachekey=$CACHEKEY"
-
-      - name: Assert name output is set
+          echo "PASS"
+      - name: Assert cachekey output
         env:
-          NAME: ${{ steps.toolchain.outputs.name }}
+          ACTUAL: ${{ steps.action.outputs.cachekey }}
         run: |
-          echo "name: $NAME"
-          if [ -z "$NAME" ]; then
-            echo "FAIL: name output is empty"
+          echo "actual: $ACTUAL"
+          if ! [[ "$ACTUAL" =~ ^20[0-9]{6}[0-9a-f]{4}$ ]]; then
+            echo "FAIL: cachekey should be 8-digit date + 4 hex chars"
             exit 1
           fi
-          echo "PASS: name=$NAME"
-
-      - name: Assert rustc is available and is stable
+          echo "PASS"
+      - name: Assert rustc and cargo work
+        shell: bash
         run: |
           rustc --version
-          RUSTC_VER=$(rustc --version)
-          echo "rustc version: $RUSTC_VER"
-          if echo "$RUSTC_VER" | grep -q "nightly"; then
-            echo "FAIL: expected stable but got nightly"
-            exit 1
-          fi
-          echo "PASS: stable rustc is installed"
-
-      - name: Assert cargo is available
-        run: |
           cargo --version
-          echo "PASS: cargo is available"
+          rustc +stable --version | grep -q '^rustc 1\.' || { echo "FAIL: rustc +stable not working"; exit 1; }
+          echo "PASS"
+      - name: Assert env vars exported
+        shell: bash
+        run: |
+          echo "CARGO_INCREMENTAL=$CARGO_INCREMENTAL CARGO_TERM_COLOR=$CARGO_TERM_COLOR CARGO_HOME=$CARGO_HOME"
+          [ "$CARGO_INCREMENTAL" = "0" ] || { echo "FAIL: CARGO_INCREMENTAL"; exit 1; }
+          [ "$CARGO_TERM_COLOR" = "always" ] || { echo "FAIL: CARGO_TERM_COLOR"; exit 1; }
+          [ -n "$CARGO_HOME" ] || { echo "FAIL: CARGO_HOME empty"; exit 1; }
+          echo "PASS"

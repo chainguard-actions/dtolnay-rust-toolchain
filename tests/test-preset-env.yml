@@ -1,0 +1,22 @@
+name: Test preset env vars are preserved
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "1"
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          toolchain: stable
+      - name: Assert env vars preserved
+        shell: bash
+        run: |
+          echo "CARGO_INCREMENTAL=$CARGO_INCREMENTAL CARGO_TERM_COLOR=$CARGO_TERM_COLOR"
+          [ "$CARGO_INCREMENTAL" = "1" ] || { echo "FAIL: CARGO_INCREMENTAL overridden"; exit 1; }
+          [ "$CARGO_TERM_COLOR" = "never" ] || { echo "FAIL: CARGO_TERM_COLOR overridden"; exit 1; }
+          echo "PASS"

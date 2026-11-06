@@ -1,4 +1,4 @@
-name: Test target alias input
+name: Test target alias install
 on:
   workflow_dispatch:
 jobs:
@@ -6,31 +6,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - id: toolchain
-        name: Install stable Rust using target alias input
+      - id: action
         uses: .
         with:
           toolchain: stable
-          target: x86_64-unknown-linux-musl
-
-      - name: Assert cachekey output is set
-        env:
-          CACHEKEY: ${{ steps.toolchain.outputs.cachekey }}
+          target: wasm32-unknown-unknown
+      - name: Assert target installed
+        shell: bash
         run: |
-          echo "cachekey: $CACHEKEY"
-          if [ -z "$CACHEKEY" ]; then
-            echo "FAIL: cachekey output is empty"
-            exit 1
-          fi
-          echo "PASS: cachekey=$CACHEKEY"
-
-      - name: Assert musl target is installed
-        run: |
-          TARGETS=$(rustup target list --installed)
-          echo "installed targets: $TARGETS"
-          if ! echo "$TARGETS" | grep -q "x86_64-unknown-linux-musl"; then
-            echo "FAIL: x86_64-unknown-linux-musl target not found in installed targets"
-            exit 1
-          fi
-          echo "PASS: x86_64-unknown-linux-musl target is installed"
+          rustup +stable target list --installed
+          rustup +stable target list --installed | grep -qx 'wasm32-unknown-unknown' || { echo "FAIL: wasm32 target missing"; exit 1; }
+          echo "PASS"
